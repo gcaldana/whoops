@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Whoops Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root { --blue:#2A4BD7; --ink:#0F1B33; --muted:#5A6B8C; --bg:#F4F6FB; --card:#fff; --line:#E0E3E7; --red:#E53935; --green:#22C55E; --orange:#EE8B60; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--blue); color:#fff; padding:14px 20px; display:flex; align-items:center; gap:16px; }
+  header h1 { font-size:20px; margin:0; font-style:italic; }
+  header .me { margin-left:auto; font-size:13px; opacity:.9; }
+  header button { background:rgba(255,255,255,.18); color:#fff; border:0; }
+  main { max-width:1100px; margin:0 auto; padding:20px 16px 60px; }
+  nav.tabs { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+  nav.tabs button { background:#fff; color:var(--ink); border:1px solid var(--line); }
+  nav.tabs button.on { background:var(--blue); color:#fff; border-color:var(--blue); }
+  .card { background:var(--card); border-radius:16px; padding:18px; box-shadow:0 4px 14px rgba(0,0,0,.05); margin-bottom:16px; }
+  h2 { font-size:17px; margin:0 0 12px; color:var(--blue); }
+  label { display:block; font-size:12px; font-weight:600; color:var(--muted); margin:10px 0 4px; }
+  input, select, textarea { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font:inherit; background:#fff; }
+  textarea { min-height:90px; resize:vertical; }
+  button { cursor:pointer; padding:9px 14px; border-radius:20px; border:1px solid var(--blue); background:var(--blue); color:#fff; font:inherit; font-weight:600; font-size:14px; }
+  button.ghost { background:#fff; color:var(--blue); }
+  button.danger { background:#fff; color:var(--red); border-color:var(--red); }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; }
+  .row > * { flex:1 1 200px; }
+  .actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; align-items:center; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th, td { text-align:left; padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-size:12px; font-weight:600; }
+  .thumb { width:56px; height:56px; border-radius:10px; object-fit:cover; background:var(--line); display:block; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11.5px; font-weight:700; }
+  .on-pill { background:#DCFCE7; color:#15803D; } .off-pill { background:#F1F5F9; color:var(--muted); }
+  .err { color:var(--red); font-size:12.5px; }
+  .muted { color:var(--muted); font-size:12.5px; }
+  .note { background:#FFF7ED; border:1px solid #FED7AA; color:#9A3412; border-radius:12px; padding:10px 12px; font-size:13px; margin:8px 0 12px; }
+  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 16px; border-radius:12px; font-size:14px; display:none; z-index:9; }
+  .login { max-width:380px; margin:80px auto; }
+  .chk { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:14px; }
+  .chk input { width:auto; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Whoops! Admin</h1>
+  <span class="me" id="me"></span>
+  <button id="logoutBtn" class="hidden">Esci</button>
+</header>
+
+<main>
+  <!-- ---------------------------------------------------------- LOGIN -->
+  <section id="loginView" class="card login">
+    <h2>Accesso amministratore</h2>
+    <p class="muted">Entra con lo stesso account che usi nell'app. Solo gli account con ruolo admin possono modificare i contenuti.</p>
+    <label>Email</label><input id="email" type="email" autocomplete="username">
+    <label>Password</label><input id="password" type="password" autocomplete="current-password">
+    <div class="actions"><button id="loginBtn">Entra</button><span class="err" id="loginErr"></span></div>
+  </section>
+
+  <section id="app" class="hidden">
+    <nav class="tabs">
+      <button data-tab="promos" class="on">Sponsorizzati e articoli</button>
+      <button data-tab="sources">Fonti notizie</button>
+      <button data-tab="items">Notizie raccolte</button>
+      <button data-tab="settings">Impostazioni</button>
+    </nav>
+
+    <!-- --------------------------------------------- SPONSORIZZATI -->
+    <div data-pane="promos">
+      <div class="card">
+        <h2 id="promoFormTitle">Nuovo contenuto</h2>
+        <input type="hidden" id="p_id">
+        <div class="row">
+          <div><label>Tipo</label>
+            <select id="p_kind">
+              <option value="sponsored">Sponsorizzato (pubblicità)</option>
+              <option value="article">Articolo (scritto da me)</option>
+            </select></div>
+          <div><label>Sponsor / cliente (facoltativo)</label><input id="p_sponsor" placeholder="es. Negozio FPV Verona"></div>
+        </div>
+        <label>Titolo *</label><input id="p_title" maxlength="140">
+        <label>Breve descrizione (mostrata nel riquadro)</label><textarea id="p_summary" maxlength="300" style="min-height:60px"></textarea>
+        <div class="row">
+          <div><label>Immagine (quadrata consigliata)</label><input id="p_file" type="file" accept="image/jpeg,image/png,image/webp,image/gif"></div>
+          <div><label>...oppure URL immagine</label><input id="p_image" placeholder="https://..."></div>
+        </div>
+        <label>Link esterno (se vuoto, si apre l'articolo qui sotto dentro l'app)</label><input id="p_link" placeholder="https://...">
+        <label>Testo dell'articolo (solo se non c'è un link)</label><textarea id="p_body" style="min-height:160px"></textarea>
+        <div class="row">
+          <div><label>Etichetta (vuoto = "Sponsorizzato" per gli sponsorizzati)</label><input id="p_label" placeholder="es. Evento, Partner"></div>
+          <div><label>Priorità (più alto = prima)</label><input id="p_priority" type="number" value="0"></div>
+        </div>
+        <div class="row">
+          <div><label>Visibile dal</label><input id="p_start" type="datetime-local"></div>
+          <div><label>Fino al (vuoto = senza scadenza)</label><input id="p_end" type="datetime-local"></div>
+        </div>
+        <div class="chk"><input id="p_active" type="checkbox" checked><span>Attivo</span></div>
+        <div class="chk"><input id="p_pinned" type="checkbox"><span>In evidenza (sempre in cima alla lista)</span></div>
+        <div class="actions">
+          <button id="p_save">Salva</button>
+          <button class="ghost" id="p_reset">Nuovo / annulla</button>
+          <span class="muted" id="p_msg"></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Contenuti</h2>
+        <table><thead><tr><th></th><th>Titolo</th><th>Tipo</th><th>Periodo</th><th>Stato</th><th></th></tr></thead>
+        <tbody id="promoRows"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------ FONTI -->
+    <div data-pane="sources" class="hidden">
+      <div class="card">
+        <h2 id="sourceFormTitle">Nuova fonte</h2>
+        <div class="note"><b>Solo fonti legali.</b> YouTube: canali via API ufficiale (titolo, miniatura e link, con la fonte YouTube indicata). RSS: solo siti che ti hanno dato il <b>permesso scritto</b> di mostrare le loro notizie nell'app: annota qui chi, quando e come (es. "email di Mario Rossi, 12/10/2026"). Senza nota la fonte RSS non si può attivare.</div>
+        <input type="hidden" id="s_id">
+        <div class="row">
+          <div><label>Nome</label><input id="s_name" placeholder="es. Canale BetaFPV"></div>
+          <div><label>Tipo</label><select id="s_kind"><option value="youtube">Canale YouTube</option><option value="rss">Feed RSS (con permesso)</option></select></div>
+        </div>
+        <label id="s_refLabel">Canale YouTube: @handle o ID (UC...)</label><input id="s_ref" placeholder="@nomecanale">
+        <label>Permesso / licenza (obbligatorio per RSS)</label><input id="s_perm" placeholder="es. Autorizzazione via email di ..., 12/10/2026">
+        <div class="chk"><input id="s_enabled" type="checkbox"><span>Attiva</span></div>
+        <div class="actions">
+          <button id="s_save">Salva</button>
+          <button class="ghost" id="s_reset">Nuova / annulla</button>
+          <button class="ghost" id="fetchNow">Aggiorna notizie ora</button>
+          <span class="muted" id="s_msg"></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Fonti</h2>
+        <table><thead><tr><th>Nome</th><th>Tipo</th><th>Riferimento</th><th>Stato</th><th>Ultimo aggiornamento</th><th></th></tr></thead>
+        <tbody id="sourceRows"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ----------------------------------------------------- NOTIZIE -->
+    <div data-pane="items" class="hidden">
+      <div class="card">
+        <h2>Notizie raccolte</h2>
+        <p class="muted">Le ultime 100 notizie raccolte dalle fonti. Puoi nasconderne una dall'app.</p>
+        <table><thead><tr><th></th><th>Titolo</th><th>Fonte</th><th>Data</th><th></th></tr></thead>
+        <tbody id="itemRows"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ----------------------------------------------- IMPOSTAZIONI -->
+    <div data-pane="settings" class="hidden">
+      <div class="card">
+        <h2>Impostazioni</h2>
+        <label>Un contenuto sponsorizzato ogni quanti riquadri?</label>
+        <input id="st_every" type="number" min="2" max="50">
+        <p class="muted">Esempio: 5 = ogni 4 notizie compare 1 sponsorizzato (a rotazione tra quelli attivi). I contenuti "in evidenza" stanno sempre in cima.</p>
+        <div class="chk"><input id="st_admob" type="checkbox" disabled><span>Annunci Google AdMob (da attivare in seguito)</span></div>
+        <div class="actions"><button id="st_save">Salva</button><span class="muted" id="st_msg"></span></div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+var SUPABASE_URL = 'https://wxzorvshngzrrtmtqyyg.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_JQYcICHca5p-IvNJutTLmw_EwPYbPB2';
+var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+var $ = function (id) { return document.getElementById(id); };
+
+function toast(msg) {
+  var t = $('toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(window._tt); window._tt = setTimeout(function () { t.style.display = 'none'; }, 2600);
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function fmt(d) { if (!d) return '—'; var x = new Date(d); return x.toLocaleDateString('it-IT') + ' ' + x.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'}); }
+function toLocalInput(d) { if (!d) return ''; var x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); }
+function fromLocalInput(v) { return v ? new Date(v).toISOString() : null; }
+
+// ------------------------------------------------------------ accesso
+async function start() {
+  var res = await sb.auth.getSession();
+  var session = res.data.session;
+  if (!session) { showLogin(); return; }
+  var r = await sb.from('user_roles').select('role').eq('user_id', session.user.id).eq('role', 'admin').maybeSingle();
+  if (!r.data) {
+    showLogin('Questo account non è amministratore.');
+    await sb.auth.signOut();
+    return;
+  }
+  $('me').textContent = session.user.email;
+  $('logoutBtn').classList.remove('hidden');
+  $('loginView').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  loadPromos(); loadSources(); loadItems(); loadSettings();
+}
+function showLogin(err) {
+  $('app').classList.add('hidden'); $('loginView').classList.remove('hidden');
+  $('logoutBtn').classList.add('hidden'); $('me').textContent = '';
+  $('loginErr').textContent = err || '';
+}
+$('loginBtn').onclick = async function () {
+  $('loginErr').textContent = '';
+  var r = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value });
+  if (r.error) { $('loginErr').textContent = 'Accesso non riuscito: ' + r.error.message; return; }
+  start();
+};
+$('password').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('loginBtn').click(); });
+$('logoutBtn').onclick = async function () { await sb.auth.signOut(); showLogin(); };
+
+// --------------------------------------------------------------- schede
+document.querySelectorAll('nav.tabs button').forEach(function (b) {
+  b.onclick = function () {
+    document.querySelectorAll('nav.tabs button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    document.querySelectorAll('[data-pane]').forEach(function (p) { p.classList.toggle('hidden', p.dataset.pane !== b.dataset.tab); });
+  };
+});
+
+// -------------------------------------------------------- sponsorizzati
+var promos = [];
+async function loadPromos() {
+  var r = await sb.from('news_promos').select('*').order('pinned', {ascending:false}).order('priority', {ascending:false}).order('created_at', {ascending:false});
+  promos = r.data || [];
+  var now = Date.now();
+  $('promoRows').innerHTML = promos.map(function (p) {
+    var live = p.active && new Date(p.starts_at).getTime() <= now && (!p.ends_at || new Date(p.ends_at).getTime() > now);
+    return '<tr><td>' + (p.image_url ? '<img class="thumb" src="' + esc(p.image_url) + '">' : '<div class="thumb"></div>') + '</td>' +
+      '<td><b>' + esc(p.title) + '</b>' + (p.pinned ? ' <span class="pill on-pill">in evidenza</span>' : '') + '<div class="muted">' + esc(p.sponsor_name) + '</div></td>' +
+      '<td>' + (p.kind === 'article' ? 'Articolo' : 'Sponsorizzato') + (p.link ? '<div class="muted">link esterno</div>' : '') + '</td>' +
+      '<td class="muted">' + fmt(p.starts_at) + '<br>→ ' + (p.ends_at ? fmt(p.ends_at) : 'senza scadenza') + '</td>' +
+      '<td>' + (live ? '<span class="pill on-pill">visibile</span>' : '<span class="pill off-pill">non visibile</span>') + '</td>' +
+      '<td><button class="ghost" onclick="editPromo(\'' + p.id + '\')">Modifica</button> <button class="danger" onclick="deletePromo(\'' + p.id + '\')">Elimina</button></td></tr>';
+  }).join('') || '<tr><td colspan="6" class="muted">Nessun contenuto ancora.</td></tr>';
+}
+function resetPromo() {
+  ['p_id','p_title','p_summary','p_image','p_link','p_body','p_label','p_sponsor','p_end'].forEach(function (k) { $(k).value = ''; });
+  $('p_kind').value = 'sponsored'; $('p_priority').value = 0; $('p_start').value = toLocalInput(new Date());
+  $('p_active').checked = true; $('p_pinned').checked = false; $('p_file').value = '';
+  $('promoFormTitle').textContent = 'Nuovo contenuto'; $('p_msg').textContent = '';
+}
+window.editPromo = function (id) {
+  var p = promos.find(function (x) { return x.id === id; }); if (!p) return;
+  $('p_id').value = p.id; $('p_kind').value = p.kind; $('p_title').value = p.title; $('p_summary').value = p.summary;
+  $('p_image').value = p.image_url; $('p_link').value = p.link; $('p_body').value = p.body; $('p_label').value = p.label;
+  $('p_sponsor').value = p.sponsor_name; $('p_priority').value = p.priority; $('p_start').value = toLocalInput(p.starts_at);
+  $('p_end').value = toLocalInput(p.ends_at); $('p_active').checked = p.active; $('p_pinned').checked = p.pinned; $('p_file').value = '';
+  $('promoFormTitle').textContent = 'Modifica contenuto'; window.scrollTo({top:0, behavior:'smooth'});
+};
+window.deletePromo = async function (id) {
+  if (!confirm('Eliminare definitivamente questo contenuto?')) return;
+  var r = await sb.from('news_promos').delete().eq('id', id);
+  if (r.error) { toast('Errore: ' + r.error.message); return; }
+  toast('Eliminato'); loadPromos();
+};
+async function uploadImage(file) {
+  if (file.size > 25 * 1024 * 1024) throw new Error('Immagine oltre 25 MB');
+  var ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  var path = 'promos/' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+  var r = await sb.storage.from('news').upload(path, file, { contentType: file.type, upsert: false });
+  if (r.error) throw r.error;
+  return sb.storage.from('news').getPublicUrl(path).data.publicUrl;
+}
+$('p_reset').onclick = resetPromo;
+$('p_save').onclick = async function () {
+  var btn = this; $('p_msg').textContent = '';
+  if (!$('p_title').value.trim()) { $('p_msg').textContent = 'Il titolo è obbligatorio.'; return; }
+  if (!$('p_link').value.trim() && !$('p_body').value.trim()) { $('p_msg').textContent = 'Serve un link esterno oppure il testo dell\'articolo.'; return; }
+  btn.disabled = true;
+  try {
+    var image = $('p_image').value.trim();
+    var f = $('p_file').files[0];
+    if (f) image = await uploadImage(f);
+    var row = {
+      kind: $('p_kind').value, title: $('p_title').value.trim(), summary: $('p_summary').value.trim(),
+      image_url: image, link: $('p_link').value.trim(), body: $('p_body').value, label: $('p_label').value.trim(),
+      sponsor_name: $('p_sponsor').value.trim(), priority: parseInt($('p_priority').value || '0', 10),
+      starts_at: fromLocalInput($('p_start').value) || new Date().toISOString(), ends_at: fromLocalInput($('p_end').value),
+      active: $('p_active').checked, pinned: $('p_pinned').checked
+    };
+    var id = $('p_id').value;
+    var r = id ? await sb.from('news_promos').update(row).eq('id', id) : await sb.from('news_promos').insert(row);
+    if (r.error) throw r.error;
+    toast('Salvato'); resetPromo(); loadPromos();
+  } catch (e) { $('p_msg').textContent = 'Errore: ' + (e.message || e); }
+  btn.disabled = false;
+};
+
+// ---------------------------------------------------------------- fonti
+var sources = [];
+async function loadSources() {
+  var r = await sb.from('news_sources').select('*').order('created_at', {ascending:false});
+  sources = r.data || [];
+  $('sourceRows').innerHTML = sources.map(function (s) {
+    return '<tr><td><b>' + esc(s.name) + '</b>' + (s.permission_note ? '<div class="muted">' + esc(s.permission_note) + '</div>' : '') + '</td>' +
+      '<td>' + (s.kind === 'youtube' ? 'YouTube' : 'RSS') + '</td><td class="muted">' + esc(s.ref) + '</td>' +
+      '<td>' + (s.enabled ? '<span class="pill on-pill">attiva</span>' : '<span class="pill off-pill">spenta</span>') + '</td>' +
+      '<td class="muted">' + fmt(s.last_fetch_at) + (s.last_error ? '<div class="err">' + esc(s.last_error) + '</div>' : '') + '</td>' +
+      '<td><button class="ghost" onclick="editSource(\'' + s.id + '\')">Modifica</button> <button class="danger" onclick="deleteSource(\'' + s.id + '\')">Elimina</button></td></tr>';
+  }).join('') || '<tr><td colspan="6" class="muted">Nessuna fonte ancora.</td></tr>';
+}
+function syncRefLabel() {
+  $('s_refLabel').textContent = $('s_kind').value === 'youtube' ? 'Canale YouTube: @handle o ID (UC...)' : 'URL del feed RSS/Atom';
+  $('s_ref').placeholder = $('s_kind').value === 'youtube' ? '@nomecanale' : 'https://sito.com/feed';
+}
+$('s_kind').onchange = syncRefLabel;
+function resetSource() {
+  ['s_id','s_name','s_ref','s_perm'].forEach(function (k) { $(k).value = ''; });
+  $('s_kind').value = 'youtube'; $('s_enabled').checked = false; syncRefLabel();
+  $('sourceFormTitle').textContent = 'Nuova fonte'; $('s_msg').textContent = '';
+}
+window.editSource = function (id) {
+  var s = sources.find(function (x) { return x.id === id; }); if (!s) return;
+  $('s_id').value = s.id; $('s_name').value = s.name; $('s_kind').value = s.kind; $('s_ref').value = s.ref;
+  $('s_perm').value = s.permission_note; $('s_enabled').checked = s.enabled; syncRefLabel();
+  $('sourceFormTitle').textContent = 'Modifica fonte'; window.scrollTo({top:0, behavior:'smooth'});
+};
+window.deleteSource = async function (id) {
+  if (!confirm('Eliminare la fonte? Verranno cancellate anche le sue notizie.')) return;
+  var r = await sb.from('news_sources').delete().eq('id', id);
+  if (r.error) { toast('Errore: ' + r.error.message); return; }
+  toast('Eliminata'); loadSources(); loadItems();
+};
+$('s_reset').onclick = resetSource;
+$('s_save').onclick = async function () {
+  $('s_msg').textContent = '';
+  var row = { name: $('s_name').value.trim(), kind: $('s_kind').value, ref: $('s_ref').value.trim(),
+              permission_note: $('s_perm').value.trim(), enabled: $('s_enabled').checked };
+  if (!row.name || !row.ref) { $('s_msg').textContent = 'Nome e riferimento sono obbligatori.'; return; }
+  if (row.kind === 'rss' && row.enabled && !row.permission_note) { $('s_msg').textContent = 'Per attivare una fonte RSS serve la nota del permesso.'; return; }
+  var id = $('s_id').value;
+  var r = id ? await sb.from('news_sources').update(row).eq('id', id) : await sb.from('news_sources').insert(row);
+  if (r.error) { $('s_msg').textContent = 'Errore: ' + r.error.message; return; }
+  toast('Salvata'); resetSource(); loadSources();
+};
+$('fetchNow').onclick = async function () {
+  var btn = this; btn.disabled = true; $('s_msg').textContent = 'Aggiornamento in corso...';
+  try {
+    var r = await sb.functions.invoke('news-fetch', { body: {} });
+    if (r.error) throw r.error;
+    var rep = (r.data && r.data.report) || [];
+    $('s_msg').textContent = rep.length ? rep.map(function (x) { return x.source + ': ' + (x.error ? 'errore - ' + x.error : x.items + ' notizie'); }).join(' | ') : 'Nessuna fonte attiva.';
+    loadSources(); loadItems();
+  } catch (e) { $('s_msg').textContent = 'Errore: ' + (e.message || e); }
+  btn.disabled = false;
+};
+
+// -------------------------------------------------------------- notizie
+async function loadItems() {
+  var r = await sb.from('news_items').select('id, title, image_url, link, published_at, hidden, news_sources(name)').order('published_at', {ascending:false}).limit(100);
+  var items = r.data || [];
+  $('itemRows').innerHTML = items.map(function (i) {
+    return '<tr><td>' + (i.image_url ? '<img class="thumb" src="' + esc(i.image_url) + '">' : '<div class="thumb"></div>') + '</td>' +
+      '<td><a href="' + esc(i.link) + '" target="_blank" rel="noopener">' + esc(i.title) + '</a></td>' +
+      '<td class="muted">' + esc(i.news_sources ? i.news_sources.name : '') + '</td><td class="muted">' + fmt(i.published_at) + '</td>' +
+      '<td><button class="' + (i.hidden ? '' : 'ghost') + '" onclick="toggleItem(\'' + i.id + '\',' + (!i.hidden) + ')">' + (i.hidden ? 'Mostra' : 'Nascondi') + '</button></td></tr>';
+  }).join('') || '<tr><td colspan="5" class="muted">Ancora nessuna notizia: aggiungi e attiva una fonte, poi "Aggiorna notizie ora".</td></tr>';
+}
+window.toggleItem = async function (id, hide) {
+  var r = await sb.from('news_items').update({ hidden: hide }).eq('id', id);
+  if (r.error) { toast('Errore: ' + r.error.message); return; }
+  loadItems();
+};
+
+// --------------------------------------------------------- impostazioni
+async function loadSettings() {
+  var r = await sb.from('news_settings').select('*').eq('id', 1).maybeSingle();
+  if (r.data) { $('st_every').value = r.data.promo_every; $('st_admob').checked = r.data.admob_enabled; }
+}
+$('st_save').onclick = async function () {
+  var v = parseInt($('st_every').value, 10);
+  if (!(v >= 2 && v <= 50)) { $('st_msg').textContent = 'Valore tra 2 e 50.'; return; }
+  var r = await sb.from('news_settings').update({ promo_every: v, updated_at: new Date().toISOString() }).eq('id', 1);
+  $('st_msg').textContent = r.error ? 'Errore: ' + r.error.message : 'Salvato';
+};
+
+resetPromo(); resetSource();
+start();
+</script>
+</body>
+</html>
