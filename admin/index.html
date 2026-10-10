@@ -79,21 +79,25 @@
         <div class="row">
           <div><label>Tipo</label>
             <select id="p_kind">
+              <option value="banner">Pubblicità (banner a immagine piena)</option>
               <option value="sponsored">Sponsorizzato (pubblicità)</option>
               <option value="article">Articolo (scritto da me)</option>
             </select></div>
           <div><label>Sponsor / cliente (facoltativo)</label><input id="p_sponsor" placeholder="es. Negozio FPV Verona"></div>
         </div>
-        <label>Titolo *</label><input id="p_title" maxlength="140">
+        <div id="p_bannerHint" class="muted hidden" style="margin:8px 0">Il banner riempie tutta la card nella News, con le stesse dimensioni delle altre. Immagine consigliata <b>1200 x 480 px</b> (rapporto 2,5:1): tieni scritte e logo lontani dai bordi (circa 50 px), perché su alcuni telefoni vengono tagliati un poco. Al tocco si apre il link. In app vengono mostrati dopo 1 notizia, poi dopo 2, poi dopo 3.</div>
+        <label id="p_titleLabel">Titolo *</label><input id="p_title" maxlength="140">
+        <div id="p_textOnly">
         <label>Breve descrizione (mostrata nel riquadro)</label><textarea id="p_summary" maxlength="300" style="min-height:60px"></textarea>
+        </div>
         <div class="row">
-          <div><label>Immagine (quadrata consigliata)</label><input id="p_file" type="file" accept="image/jpeg,image/png,image/webp,image/gif"></div>
+          <div><label id="p_imageLabel">Immagine (quadrata consigliata)</label><input id="p_file" type="file" accept="image/jpeg,image/png,image/webp,image/gif"></div>
           <div><label>...oppure URL immagine</label><input id="p_image" placeholder="https://..."></div>
         </div>
-        <label>Link esterno (se vuoto, si apre l'articolo qui sotto dentro l'app)</label><input id="p_link" placeholder="https://...">
-        <label>Testo dell'articolo (solo se non c'è un link)</label><textarea id="p_body" style="min-height:160px"></textarea>
+        <label id="p_linkLabel">Link esterno (se vuoto, si apre l'articolo qui sotto dentro l'app)</label><input id="p_link" placeholder="https://...">
+        <div id="p_bodyWrap"><label>Testo dell'articolo (solo se non c'è un link)</label><textarea id="p_body" style="min-height:160px"></textarea></div>
         <div class="row">
-          <div><label>Etichetta (vuoto = "Sponsorizzato" per gli sponsorizzati)</label><input id="p_label" placeholder="es. Evento, Partner"></div>
+          <div><label>Etichetta (vuoto = "Sponsorizzato" per gli sponsorizzati e i banner)</label><input id="p_label" placeholder="es. Evento, Partner"></div>
           <div><label>Priorità (più alto = prima)</label><input id="p_priority" type="number" value="0"></div>
         </div>
         <div class="row">
@@ -231,17 +235,29 @@ async function loadPromos() {
     var live = p.active && new Date(p.starts_at).getTime() <= now && (!p.ends_at || new Date(p.ends_at).getTime() > now);
     return '<tr><td>' + (p.image_url ? '<img class="thumb" src="' + esc(p.image_url) + '">' : '<div class="thumb"></div>') + '</td>' +
       '<td><b>' + esc(p.title) + '</b>' + (p.pinned ? ' <span class="pill on-pill">in evidenza</span>' : '') + '<div class="muted">' + esc(p.sponsor_name) + '</div></td>' +
-      '<td>' + (p.kind === 'article' ? 'Articolo' : 'Sponsorizzato') + (p.link ? '<div class="muted">link esterno</div>' : '') + '</td>' +
+      '<td>' + (p.kind === 'article' ? 'Articolo' : p.kind === 'banner' ? 'Pubblicità (banner)' : 'Sponsorizzato') + (p.link ? '<div class="muted">link esterno</div>' : '') + '</td>' +
       '<td class="muted">' + fmt(p.starts_at) + '<br>→ ' + (p.ends_at ? fmt(p.ends_at) : 'senza scadenza') + '</td>' +
       '<td>' + (live ? '<span class="pill on-pill">visibile</span>' : '<span class="pill off-pill">non visibile</span>') + '</td>' +
       '<td><button class="ghost" onclick="editPromo(\'' + p.id + '\')">Modifica</button> <button class="danger" onclick="deletePromo(\'' + p.id + '\')">Elimina</button></td></tr>';
   }).join('') || '<tr><td colspan="6" class="muted">Nessun contenuto ancora.</td></tr>';
 }
+// Tipo "banner": solo immagine + link (niente descrizione ne' articolo).
+function syncPromoKind() {
+  var banner = $('p_kind').value === 'banner';
+  $('p_bannerHint').classList.toggle('hidden', !banner);
+  $('p_textOnly').classList.toggle('hidden', banner);
+  $('p_bodyWrap').classList.toggle('hidden', banner);
+  $('p_titleLabel').textContent = banner ? 'Nome della pubblicità * (non si vede, serve a te e all’accessibilità)' : 'Titolo *';
+  $('p_imageLabel').textContent = banner ? 'Immagine del banner * (1200 x 480 px)' : 'Immagine (quadrata consigliata)';
+  $('p_linkLabel').textContent = banner ? 'Link da aprire al tocco *' : 'Link esterno (se vuoto, si apre l’articolo qui sotto dentro l’app)';
+}
+$('p_kind').onchange = syncPromoKind;
 function resetPromo() {
   ['p_id','p_title','p_summary','p_image','p_link','p_body','p_label','p_sponsor','p_end'].forEach(function (k) { $(k).value = ''; });
   $('p_kind').value = 'sponsored'; $('p_priority').value = 0; $('p_start').value = toLocalInput(new Date());
   $('p_active').checked = true; $('p_pinned').checked = false; $('p_file').value = '';
   $('promoFormTitle').textContent = 'Nuovo contenuto'; $('p_msg').textContent = '';
+  syncPromoKind();
 }
 window.editPromo = function (id) {
   var p = promos.find(function (x) { return x.id === id; }); if (!p) return;
@@ -249,6 +265,7 @@ window.editPromo = function (id) {
   $('p_image').value = p.image_url; $('p_link').value = p.link; $('p_body').value = p.body; $('p_label').value = p.label;
   $('p_sponsor').value = p.sponsor_name; $('p_priority').value = p.priority; $('p_start').value = toLocalInput(p.starts_at);
   $('p_end').value = toLocalInput(p.ends_at); $('p_active').checked = p.active; $('p_pinned').checked = p.pinned; $('p_file').value = '';
+  syncPromoKind();
   $('promoFormTitle').textContent = 'Modifica contenuto'; window.scrollTo({top:0, behavior:'smooth'});
 };
 window.deletePromo = async function (id) {
@@ -269,7 +286,11 @@ $('p_reset').onclick = resetPromo;
 $('p_save').onclick = async function () {
   var btn = this; $('p_msg').textContent = '';
   if (!$('p_title').value.trim()) { $('p_msg').textContent = 'Il titolo è obbligatorio.'; return; }
-  if (!$('p_link').value.trim() && !$('p_body').value.trim()) { $('p_msg').textContent = 'Serve un link esterno oppure il testo dell\'articolo.'; return; }
+  if ($('p_kind').value === 'banner') {
+    if (!$('p_link').value.trim()) { $('p_msg').textContent = 'Il banner ha bisogno del link da aprire.'; return; }
+    if (!$('p_file').files[0] && !$('p_image').value.trim()) { $('p_msg').textContent = 'Il banner ha bisogno dell’immagine.'; return; }
+    $('p_summary').value = ''; $('p_body').value = '';
+  } else if (!$('p_link').value.trim() && !$('p_body').value.trim()) { $('p_msg').textContent = 'Serve un link esterno oppure il testo dell\'articolo.'; return; }
   btn.disabled = true;
   try {
     var image = $('p_image').value.trim();
